@@ -14,7 +14,7 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
 function splitVideo(videoURL) {
   var videoElement = document.createElement('video');
   videoElement.src = videoURL;
-  videoElement.addEventListener('loadedmetadata', function() {
+  videoElement.addEventListener('onloadeddata', function() {
     var duration = videoElement.duration;
     var numSegments = Math.ceil(duration / 29);
 
