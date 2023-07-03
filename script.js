@@ -3,7 +3,7 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
   var videoFile = document.getElementById('videoFile').files[0];
   
   if (!videoFile) {
-    alert('Please select a video file.');
+    alert('رجاء اختر مقطعا لتتم تجزئته.');
     return;
   }
   
