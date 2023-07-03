@@ -1,3 +1,6 @@
+// Import FFmpeg.js library
+importScripts('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg/dist/ffmpeg.min.js');
+
 document.getElementById('uploadForm').addEventListener('submit', function(event) {
   event.preventDefault();
   var videoFile = document.getElementById('videoFile').files[0];
@@ -11,43 +14,55 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
   splitVideo(videoURL);
 });
 
-function splitVideo(videoURL) {
-  var videoElement = document.createElement('video');
-  videoElement.src = videoURL;
-  videoElement.addEventListener('onloadeddata', function() {
-    var duration = videoElement.duration;
-    var numSegments = Math.ceil(duration / 29);
+async function splitVideo(videoURL) {
+  const { createFFmpeg, fetchFile } = FFmpeg;
+  const ffmpeg = createFFmpeg({ log: true });
 
-    var resultDiv = document.getElementById('result');
-    resultDiv.innerHTML = '';
+  await ffmpeg.load();
 
-    for (var i = 0; i < numSegments; i++) {
-      var segmentStart = i * 29;
-      var segmentEnd = Math.min((i + 1) * 29, duration);
+  const inputFilename = 'input.mp4';
+  const outputFilenamePattern = 'vid%03d.mp4';
+  const outputFiles = [];
 
-      var video = document.createElement('video');
-      video.src = createSegmentURL(videoURL, segmentStart, segmentEnd);
-      video.controls = true;
+  ffmpeg.FS('writeFile', inputFilename, await fetchFile(videoURL));
 
-      var filename = 'vid' + (i + 1) + '.mp4';
-      var link = document.createElement('a');
-      link.href = video.src;
-      link.download = filename;
-      link.textContent = filename;
+  await ffmpeg.run('-i', inputFilename, '-c', 'copy', '-f', 'segment', '-segment_time', '29', '-reset_timestamps', '1', outputFilenamePattern);
 
-      var segmentDiv = document.createElement('div');
-      segmentDiv.appendChild(video);
-      segmentDiv.appendChild(link);
+  const files = ffmpeg.FS('readdir', '.');
+  files.filter(file => file.name.startsWith('vid')).forEach(file => {
+    const outputData = ffmpeg.FS('readFile', file.name);
+    const outputBlob = new Blob([outputData.buffer], { type: 'video/mp4' });
+    const outputURL = URL.createObjectURL(outputBlob);
 
-      resultDiv.appendChild(segmentDiv);
-    }
+    outputFiles.push({
+      url: outputURL,
+      name: file.name
+    });
   });
-}
 
-function createSegmentURL(videoURL, start, end) {
-  var startIndex = videoURL.indexOf(':') + 1;
-  var endIndex = videoURL.indexOf(';');
-  var mimeType = videoURL.substring(startIndex, endIndex);
-  var segmentURL = videoURL.replace(mimeType, mimeType + '#t=' + start + ',' + end);
-  return segmentURL;
+  var resultDiv = document.getElementById('result');
+  resultDiv.innerHTML = '';
+
+  outputFiles.forEach(outputFile => {
+    var video = document.createElement('video');
+    video.src = outputFile.url;
+    video.controls = true;
+
+    var link = document.createElement('a');
+    link.href = outputFile.url;
+    link.download = outputFile.name;
+    link.textContent = outputFile.name;
+
+    var segmentDiv = document.createElement('div');
+    segmentDiv.appendChild(video);
+    segmentDiv.appendChild(link);
+
+    resultDiv.appendChild(segmentDiv);
+  });
+
+  ffmpeg.FS('unlink', inputFilename);
+  outputFiles.forEach(outputFile => {
+    URL.revokeObjectURL(outputFile.url);
+    ffmpeg.FS('unlink', outputFile.name);
+  });
 }
